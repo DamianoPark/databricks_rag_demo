@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대한항공 RAG 채팅 시스템</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="header-content">
+                <h1>
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    대한항공 문서 검색 시스템
+                </h1>
+                <button id="newSessionBtn" class="btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    새 세션 시작
+                </button>
+            </div>
+        </header>
+
+        <!-- 메인 콘텐츠 -->
+        <div class="main-content">
+            <!-- 사이드바 -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>파일 업로드</h3>
+                    <div class="upload-area" id="uploadArea">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <p>클릭하거나 파일을 드래그하세요</p>
+                        <input type="file" id="fileInput" hidden>
+                    </div>
+                    <div id="fileList" class="file-list"></div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>세션 정보</h3>
+                    <div class="session-info">
+                        <div class="info-item">
+                            <span class="info-label">세션 ID:</span>
+                            <span id="sessionId" class="info-value">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">대화 수:</span>
+                            <span id="messageCount" class="info-value">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 채팅 영역 -->
+            <main class="chat-container">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="welcome-message">
+                        <h2>환영합니다! 👋</h2>
+                        <p>대한항공 사내 문서에 대해 질문해주세요.</p>
+                        <div class="example-questions">
+                            <h4>예시 질문:</h4>
+                            <button class="example-btn">복리후생 제도는 어떻게 되나요?</button>
+                            <button class="example-btn">연차 사용 규정을 알려주세요</button>
+                            <button class="example-btn">출장 경비 처리 방법은?</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 입력 영역 -->
+                <div class="input-area">
+                    <div class="input-container">
+                        <textarea 
+                            id="questionInput" 
+                            placeholder="질문을 입력하세요..." 
+                            rows="1"
+                        ></textarea>
+                        <button id="sendBtn" class="btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 로딩 오버레이 (파일 업로드용만 사용) -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>파일 업로드 중...</p>
+    </div>
+
+    <script>
+        // 상태 관리
+        let sessionId = null;
+        let messageCount = 0;
+        let isComposing = false; // 한글 입력 중 여부
+        let isSending = false; // 메시지 전송 중 여부
+
+        // 엘리먼트
+        const chatMessages = document.getElementById('chatMessages');
+        const questionInput = document.getElementById('questionInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileList = document.getElementById('fileList');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const sessionIdDisplay = document.getElementById('sessionId');
+        const messageCountDisplay = document.getElementById('messageCount');
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            createNewSession();
+            setupEventListeners();
+            
+            // Marked.js 설정
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                headerIds: false,
+                mangle: false
+            });
+            
+            // Highlight.js 설정
+            if (typeof hljs !== 'undefined') {
+                hljs.configure({ ignoreUnescapedHTML: true });
+            }
+        });
+
+        // 이벤트 리스너 설정
+        function setupEventListeners() {
+            sendBtn.addEventListener('click', sendMessage);
+            
+            // 한글 입력 상태 추적
+            questionInput.addEventListener('compositionstart', () => {
+                isComposing = true;
+            });
+            
+            questionInput.addEventListener('compositionend', () => {
+                isComposing = false;
+            });
+            
+            // Enter 키 처리 (한글 입력 중이 아닐 때만)
+            questionInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            newSessionBtn.addEventListener('click', () => {
+                if (confirm('새 세션을 시작하시겠습니까? 현재 대화 내역이 초기화됩니다.')) {
+                    createNewSession();
+                }
+            });
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // 드래그 앤 드롭
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('drag-over');
+            });
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('drag-over');
+            });
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileSelect();
+                }
+            });
+
+            // 예시 질문 클릭
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('example-btn')) {
+                    questionInput.value = e.target.textContent;
+                    sendMessage();
+                }
+            });
+
+            // textarea 자동 높이 조절
+            questionInput.addEventListener('input', () => {
+                questionInput.style.height = 'auto';
+                questionInput.style.height = questionInput.scrollHeight + 'px';
+            });
+        }
+
+        // 새 세션 생성
+        async function createNewSession() {
+            try {
+                const response = await fetch('/api/session/new', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                sessionId = data.session_id;
+                messageCount = 0;
+                
+                updateSessionInfo();
+                clearChat();
+                
+                showNotification('새 세션이 시작되었습니다', 'success');
+            } catch (error) {
+                showNotification('세션 생성 실패: ' + error.message, 'error');
+            }
+        }
+
+        // 메시지 전송 (가상 스트리밍 효과)
+        async function sendMessage() {
+            const question = questionInput.value.trim();
+            if (!question) return;
+            
+            // 중복 전송 방지
+            if (isSending) {
+                console.log('이미 전송 중입니다');
+                return;
+            }
+            
+            isSending = true;
+
+            // UI 업데이트
+            addMessage('user', question);
+            questionInput.value = '';
+            questionInput.style.height = 'auto';
+            
+            // 전송 버튼 비활성화
+            sendBtn.disabled = true;
+            
+            // 빈 응답 메시지 미리 생성
+            const assistantMessageDiv = createEmptyMessage('assistant');
+            chatMessages.appendChild(assistantMessageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            const textDiv = assistantMessageDiv.querySelector('.message-text');
+
+            try {
+                // 일반 API 호출 (스트리밍 미지원)
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: question,
+                        session_id: sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('서버 오류');
+                }
+
+                const data = await response.json();
+                
+                // 세션 ID 업데이트
+                if (!sessionId) {
+                    sessionId = data.session_id;
+                    updateSessionInfo();
+                }
+
+                // 가상 타이핑 효과
+                const fullText = data.answer || '';
+                await simulateTyping(textDiv, fullText);
+                
+                messageCount += 2;
+                updateSessionInfo();
+
+            } catch (error) {
+                textDiv.classList.remove('message-streaming');
+                showNotification('오류가 발생했습니다: ' + error.message, 'error');
+                textDiv.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+            } finally {
+                // 전송 완료 처리
+                isSending = false;
+                sendBtn.disabled = false;
+            }
+        }
+        
+        // 타이핑 효과 시뮬레이션
+        async function simulateTyping(element, text, speed = 15) {
+            element.classList.add('message-streaming');
+            
+            // 문장 단위로 빠르게 표시
+            const sentences = text.split(/([.!?]\s+|[\n\r]+)/);
+            let displayed = '';
+            
+            for (let i = 0; i < sentences.length; i++) {
+                displayed += sentences[i];
+                
+                // 마크다운 렌더링
+                element.innerHTML = marked.parse(displayed);
+                
+                // 코드 하이라이팅
+                if (typeof hljs !== 'undefined') {
+                    element.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                }
+                
+                // 스크롤
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // 짧은 딜레이 (자연스러운 속도)
+                await new Promise(resolve => setTimeout(resolve, speed));
+            }
+            
+            element.classList.remove('message-streaming');
+        }
+        
+        // 빈 메시지 생성 (스트리밍용)
+        function createEmptyMessage(role) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${role}`;
+            
+            const avatarSvg = `
+                <div class="message-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+            `;
+            
+            messageDiv.innerHTML = avatarSvg;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text markdown-content';
+            
+            // 초기 로딩 애니메이션
+            textDiv.innerHTML = `
+                <div class="thinking-animation">
+                    <div class="thinking-label">
+                        <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+                            <path d="M12 17h.01"/>
+                        </svg>
+                        에이전트가 문서를 검색하고 응답을 생성하고 있습니다
+                    </div>
+                    <div class="thinking-dots">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                </div>
+            `;
+            
+            contentDiv.appendChild(textDiv);
+            messageDiv.appendChild(contentDiv);
+            
+            return messageDiv;
+        }
+
+        // 메시지 추가
+        function addMessage(role, content) {
+            // 환영 메시지 제거
+            const welcomeMsg = chatMessages.querySelector('.welcome-message');
+            if (welcomeMsg) welcomeMsg.remove();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${role}`;
+
+            if (role === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/>
+                        </svg>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(content)}</div>
+                    </div>
+                `;
+            } else {
+                const avatarSvg = `
+                    <div class="message-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                `;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text markdown-content';
+                
+                // 마크다운 렌더링
+                try {
+                    textDiv.innerHTML = marked.parse(content);
+                    // 코드 하이라이팅
+                    if (typeof hljs !== 'undefined') {
+                        textDiv.querySelectorAll('pre code').forEach((block) => {
+                            hljs.highlightElement(block);
+                        });
+                    }
+                } catch (e) {
+                    console.error('Markdown parsing error:', e);
+                    textDiv.textContent = content;
+                }
+                
+                contentDiv.appendChild(textDiv);
+                messageDiv.innerHTML = avatarSvg;
+                messageDiv.appendChild(contentDiv);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // 파일 선택 처리
+        async function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            if (!sessionId) {
+                showNotification('먼저 세션을 생성해주세요', 'warning');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('session_id', sessionId);
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '업로드 실패');
+                }
+
+                const data = await response.json();
+                addFileToList(data.file);
+                showNotification('파일이 업로드되었습니다', 'success');
+
+            } catch (error) {
+                showNotification('파일 업로드 실패: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+                fileInput.value = '';
+            }
+        }
+
+        // 파일 목록에 추가
+        function addFileToList(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/>
+                </svg>
+                <div class="file-info">
+                    <div class="file-name">${escapeHtml(file.filename)}</div>
+                    <div class="file-size">${file.size_mb}MB</div>
+                </div>
+            `;
+            fileList.appendChild(fileItem);
+        }
+
+        // 세션 정보 업데이트
+        function updateSessionInfo() {
+            sessionIdDisplay.textContent = sessionId ? sessionId.substring(0, 8) + '...' : '-';
+            messageCountDisplay.textContent = messageCount;
+        }
+
+        // 채팅 초기화
+        function clearChat() {
+            chatMessages.innerHTML = `
+                <div class="welcome-message">
+                    <h2>환영합니다! 👋</h2>
+                    <p>대한항공 사내 문서에 대해 질문해주세요.</p>
+                    <div class="example-questions">
+                        <h4>예시 질문:</h4>
+                        <button class="example-btn">복리후생 제도는 어떻게 되나요?</button>
+                        <button class="example-btn">연차 사용 규정을 알려주세요</button>
+                        <button class="example-btn">출장 경비 처리 방법은?</button>
+                    </div>
+                </div>
+            `;
+            fileList.innerHTML = '';
+        }
+
+        // 로딩 표시
+        function showLoading(show) {
+            loadingOverlay.classList.toggle('hidden', !show);
+            sendBtn.disabled = show;
+        }
+
+        // 알림 표시
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // HTML 이스케이프
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,58 @@
+# Databricks Apps 배포 설정
+# 앱 이름: jw-rag-chat
+
+# 시작 명령
+command:
+  - "python"
+  - "app.py"
+
+# 환경 변수
+env:
+  # Agent 설정 - 올바른 엔드포인트로 수정됨
+  - name: AGENT_ENDPOINT_URL
+    value: "https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/agents_jaewoo_catalog-mlfow_eval-rag_agent_v1/invocations"
+  
+  # Databricks 인증 (앱 컨텍스트에서 자동으로 제공됨)
+  # DATABRICKS_TOKEN은 Secret을 통해 주입합니다
+  - name: DATABRICKS_TOKEN
+    value: "YOUR_DATABRICKS_TOKEN_HERE"  # 실제 배포 시 Secret으로 관리
+  
+  # Unity Catalog 설정
+  - name: CATALOG_NAME
+    value: "jaewoo_catalog"
+  
+  - name: SCHEMA_NAME
+    value: "mlfow_eval"
+  
+  - name: VOLUME_NAME
+    value: "volume01"
+  
+  - name: VOLUME_BASE_PATH
+    value: "/Volumes/jaewoo_catalog/mlfow_eval/volume01"
+  
+  - name: VECTOR_SEARCH_INDEX
+    value: "jaewoo_catalog.mlfow_eval.index_oai"
+  
+  # 세션 설정
+  - name: SESSION_TIMEOUT_MINUTES
+    value: "60"
+  
+  - name: MAX_HISTORY_TURNS
+    value: "5"
+  
+  # 파일 업로드 설정
+  - name: ALLOWED_FILE_TYPES
+    value: "pdf,docx,pptx,txt,xlsx"
+  
+  - name: MAX_UPLOAD_MB
+    value: "10"
+  
+  # Flask 설정
+  - name: FLASK_DEBUG
+    value: "False"
+  
+  - name: LOG_LEVEL
+    value: "INFO"
+  
+  - name: PORT
+    value: "8000"

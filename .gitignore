@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# 환경 변수
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 로컬 볼륨 (테스트용)
+local_volumes/
+
+# 로그
+*.log
+
+# macOS
+.DS_Store
+
+# 업로드된 파일
+uploads/
+
