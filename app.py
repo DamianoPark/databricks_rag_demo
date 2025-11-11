@@ -5,6 +5,7 @@ Flask 기반 Databricks Apps 배포용 애플리케이션
 import os
 import uuid
 import logging
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -99,17 +100,20 @@ class DatabricksAgentClient:
                  os.environ.get('DATABRICKS_APP_TOKEN'))
         return token or ""
 
-    def _build_headers(self) -> dict:
+    def _build_headers(self, streaming=False) -> dict:
         token = self._resolve_token()
         if not token:
             raise ValueError(
                 "Databricks 토큰이 설정되지 않았습니다. "
                 "Apps 환경 변수에 DATABRICKS_TOKEN을 설정하세요 (예: {{secrets/<scope>/databricks-token}})."
             )
-        return {
+        headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
         }
+        if streaming:
+            headers['Accept'] = 'text/event-stream'
+        return headers
     
     def query(self, question, history=None, uploaded_files=None):
         """에이전트에 질의"""
@@ -171,6 +175,93 @@ class DatabricksAgentClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Agent 호출 실패: {str(e)}")
             raise Exception(f"Agent 호출 실패: {str(e)}")
+        except ValueError as e:
+            # 토큰 미설정 등 사전 검증 실패
+            logger.error(str(e))
+            raise
+    
+    def query_stream(self, question, history=None, uploaded_files=None):
+        """에이전트에 스트리밍 질의 (제너레이터)"""
+        try:
+            # Databricks Agent Framework 입력 형식
+            messages = []
+            
+            # 히스토리 추가 (있는 경우)
+            if history:
+                for item in history:
+                    messages.append({
+                        'role': item.get('role', 'user'),
+                        'content': item.get('content', '')
+                    })
+            
+            # 현재 질문 추가
+            messages.append({
+                'role': 'user',
+                'content': question
+            })
+            
+            # API 요청 페이로드 (stream=true 추가)
+            payload = {
+                'input': messages,
+                'stream': True  # 스트리밍 활성화
+            }
+            
+            # Context 정보 추가 (선택사항)
+            if uploaded_files:
+                payload['custom_inputs'] = {
+                    'uploaded_files': uploaded_files
+                }
+            
+            logger.info(f"Agent 스트리밍 호출: {question[:50]}...")
+            logger.debug(f"요청 페이로드: {payload}")
+            
+            # 스트리밍 요청
+            response = requests.post(
+                self.endpoint_url,
+                json=payload,
+                headers=self._build_headers(streaming=True),
+                timeout=120,
+                stream=True  # requests 라이브러리의 스트리밍 모드
+            )
+            
+            if not response.ok:
+                error_detail = response.text
+                logger.error(f"Agent API 에러 (status {response.status_code}): {error_detail}")
+                if response.status_code == 401:
+                    logger.error(
+                        "401 Unauthorized: 토큰이 누락/잘못되었습니다. "
+                        "Apps 설정에서 DATABRICKS_TOKEN을 앱의 Service Principal 토큰으로 주입했는지 확인하세요."
+                    )
+                response.raise_for_status()
+            
+            # SSE 스트림 파싱 및 yield
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                
+                line_str = line.decode('utf-8')
+                
+                # SSE 형식: "data: {...}"
+                if line_str.startswith('data: '):
+                    data_str = line_str[6:]  # "data: " 제거
+                    
+                    # [DONE] 신호 확인
+                    if data_str.strip() == '[DONE]':
+                        logger.info("스트리밍 완료")
+                        break
+                    
+                    try:
+                        event_data = json.loads(data_str)
+                        yield event_data
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"JSON 파싱 실패: {data_str[:100]}")
+                        continue
+            
+            logger.info("Agent 스트리밍 응답 수신 완료")
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Agent 스트리밍 호출 실패: {str(e)}")
+            raise Exception(f"Agent 스트리밍 호출 실패: {str(e)}")
         except ValueError as e:
             # 토큰 미설정 등 사전 검증 실패
             logger.error(str(e))
@@ -397,7 +488,7 @@ def index():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """채팅 메시지 처리"""
+    """채팅 메시지 처리 (Non-streaming, 하위 호환성 유지)"""
     try:
         data = request.json
         question = data.get('question', '').strip()
@@ -497,6 +588,104 @@ def chat():
     except Exception as e:
         logger.error(f"채팅 처리 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chat/stream', methods=['POST'])
+def chat_stream():
+    """채팅 메시지 스트리밍 처리 (SSE)"""
+    def generate():
+        try:
+            data = request.json
+            question = data.get('question', '').strip()
+            session_id = data.get('session_id')
+            
+            if not question:
+                yield f"data: {json.dumps({'error': '질문을 입력해주세요'})}\n\n"
+                return
+            
+            # 세션 관리
+            session_id, session_data = SessionManager.get_or_create_session(session_id)
+            
+            # 사용자 질문 히스토리 추가
+            SessionManager.add_to_history(session_id, 'user', question)
+            
+            # 세션 ID 전송
+            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+            
+            # 누적 응답 텍스트
+            accumulated_text = ''
+            
+            # Agent 스트리밍 호출
+            for event in agent_client.query_stream(
+                question=question,
+                history=session_data['history'][:-1],  # 현재 질문 제외
+                uploaded_files=session_data['uploaded_files']
+            ):
+                # 이벤트 타입별 처리
+                event_type = event.get('event_type') or event.get('type')
+                
+                # Delta 텍스트 추출
+                delta_text = ''
+                
+                # Databricks Agent 응답 형식 파싱
+                if 'delta' in event:
+                    delta = event['delta']
+                    if isinstance(delta, dict):
+                        delta_text = delta.get('text', '') or delta.get('content', '')
+                    elif isinstance(delta, str):
+                        delta_text = delta
+                
+                # 또는 직접 content 필드
+                elif 'content' in event:
+                    content = event['content']
+                    if isinstance(content, list):
+                        # content 배열에서 text 추출
+                        for item in content:
+                            if isinstance(item, dict) and 'text' in item:
+                                delta_text += item['text']
+                    elif isinstance(content, dict):
+                        delta_text = content.get('text', '')
+                    elif isinstance(content, str):
+                        delta_text = content
+                
+                # 또는 choices (OpenAI 스타일)
+                elif 'choices' in event and len(event['choices']) > 0:
+                    choice = event['choices'][0]
+                    if 'delta' in choice:
+                        delta_text = choice['delta'].get('content', '')
+                    elif 'text' in choice:
+                        delta_text = choice['text']
+                
+                # 텍스트가 있으면 전송
+                if delta_text:
+                    accumulated_text += delta_text
+                    yield f"data: {json.dumps({'type': 'delta', 'text': delta_text})}\n\n"
+                
+                # 완료 이벤트 확인
+                if event_type in ['response.completed', 'message.completed', 'done']:
+                    logger.info("스트리밍 완료 이벤트 수신")
+                    break
+            
+            # 응답 히스토리 추가
+            SessionManager.add_to_history(session_id, 'assistant', accumulated_text)
+            
+            # 완료 신호
+            yield f"data: {json.dumps({'type': 'done', 'full_text': accumulated_text})}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            logger.error(f"스트리밍 처리 오류: {str(e)}")
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+    
+    return app.response_class(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',  # Nginx 버퍼링 비활성화
+            'Connection': 'keep-alive'
+        }
+    )
 
 
 @app.route('/api/upload', methods=['POST'])

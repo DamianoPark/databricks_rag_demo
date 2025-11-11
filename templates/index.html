@@ -222,7 +222,7 @@
             }
         }
 
-        // 메시지 전송 (가상 스트리밍 효과)
+        // 메시지 전송 (실시간 스트리밍)
         async function sendMessage() {
             const question = questionInput.value.trim();
             if (!question) return;
@@ -251,8 +251,8 @@
             const textDiv = assistantMessageDiv.querySelector('.message-text');
 
             try {
-                // 일반 API 호출 (스트리밍 미지원)
-                const response = await fetch('/api/chat', {
+                // 스트리밍 API 호출
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -265,17 +265,79 @@
                     throw new Error('서버 오류');
                 }
 
-                const data = await response.json();
+                // ReadableStream으로 실시간 수신
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let accumulatedText = '';
                 
-                // 세션 ID 업데이트
-                if (!sessionId) {
-                    sessionId = data.session_id;
-                    updateSessionInfo();
-                }
+                // 로딩 애니메이션 제거
+                textDiv.innerHTML = '';
+                textDiv.classList.add('message-streaming');
 
-                // 가상 타이핑 효과
-                const fullText = data.answer || '';
-                await simulateTyping(textDiv, fullText);
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    // 청크 디코딩
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // SSE 라인 파싱 (data: {...}\n\n)
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop(); // 마지막 불완전한 라인 보관
+                    
+                    for (const line of lines) {
+                        if (!line.trim() || !line.startsWith('data: ')) continue;
+                        
+                        const dataStr = line.substring(6); // "data: " 제거
+                        
+                        // [DONE] 신호
+                        if (dataStr.trim() === '[DONE]') {
+                            console.log('스트리밍 완료');
+                            continue;
+                        }
+                        
+                        try {
+                            const event = JSON.parse(dataStr);
+                            
+                            // 이벤트 타입별 처리
+                            if (event.type === 'session') {
+                                // 세션 ID 업데이트
+                                if (!sessionId) {
+                                    sessionId = event.session_id;
+                                    updateSessionInfo();
+                                }
+                            } else if (event.type === 'delta') {
+                                // Delta 텍스트 누적 및 렌더링
+                                accumulatedText += event.text;
+                                
+                                // 마크다운 렌더링
+                                textDiv.innerHTML = marked.parse(accumulatedText);
+                                
+                                // 코드 하이라이팅
+                                if (typeof hljs !== 'undefined') {
+                                    textDiv.querySelectorAll('pre code').forEach((block) => {
+                                        hljs.highlightElement(block);
+                                    });
+                                }
+                                
+                                // 스크롤
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                                
+                            } else if (event.type === 'done') {
+                                // 완료
+                                console.log('응답 완료:', accumulatedText.length, 'chars');
+                            } else if (event.type === 'error') {
+                                // 오류
+                                throw new Error(event.error);
+                            }
+                        } catch (e) {
+                            console.error('이벤트 파싱 오류:', e, dataStr);
+                        }
+                    }
+                }
+                
+                textDiv.classList.remove('message-streaming');
                 
                 messageCount += 2;
                 updateSessionInfo();
