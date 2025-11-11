@@ -1,21 +1,31 @@
-# 대한항공 RAG 웹앱
+# 대한항공 RAG 시스템 ✈️
 
-Flask 기반 RAG(Retrieval-Augmented Generation) 질의응답 시스템으로, Databricks Apps에 배포하여 사용합니다.
+Databricks Agent Framework 기반의 문서 검색 및 질의응답 시스템입니다.  
+**Streamlit**을 활용한 모던하고 직관적인 UI를 제공합니다.
 
-## 📋 주요 기능
+> 💡 **이전 Flask 버전**은 `flask_version_backup_YYYYMMDD_HHMMSS.zip` 파일에 백업되어 있습니다.
 
-- **자연어 질의응답**: Databricks Agent를 통한 사내 문서 기반 RAG 응답
-- **세션 관리**: 대화 히스토리를 유지하여 맥락 있는 대화 지원
-- **파일 업로드**: Unity Catalog Volume에 문서 업로드 및 검색
-- **근거 문서 표시**: 응답에 사용된 문서 출처 제공
-- **모던 UI**: 직관적이고 사용하기 쉬운 채팅 인터페이스
+## 🎯 주요 기능
+
+### ✨ 사용자 경험
+- **모던한 UI**: 그라디언트 배경과 카드 기반 레이아웃
+- **실시간 스트리밍**: AI 응답이 생성되는 과정을 실시간으로 확인
+- **직관적인 인터페이스**: Python 코드만으로 구현된 반응형 UI
+- **Markdown 지원**: 코드 블록, 표, 리스트 등 풍부한 포맷팅
+
+### 🚀 핵심 기능
+1. **자연어 질의응답**: Databricks Agent를 통한 사내 문서 기반 RAG 응답
+2. **세션 관리**: 대화 히스토리 자동 유지 및 세션 초기화
+3. **파일 업로드**: Unity Catalog Volume에 문서 업로드 (드래그 앤 드롭 지원)
+4. **문서 검색**: Vector Search 기반 관련 문서 자동 검색
+5. **툴 사용 표시**: 문서 검색 중 상태를 실시간으로 표시
 
 ## 🛠️ 기술 스택
 
-- **Backend**: Flask (Python)
-- **Frontend**: Vanilla JavaScript + CSS
+- **Framework**: Streamlit (Python)
 - **Infrastructure**: Databricks Apps, Unity Catalog
 - **AI**: Databricks Mosaic AI Agent, Vector Search
+- **스타일링**: Custom CSS with Streamlit
 
 ## 📦 설치 및 설정
 
@@ -23,29 +33,36 @@ Flask 기반 RAG(Retrieval-Augmented Generation) 질의응답 시스템으로, D
 
 ```bash
 cd /Users/jaewoo.park/Documents/work/대한항공_RAG
+
+# 가상환경 생성 (선택사항)
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 의존성 설치
 pip install -r requirements.txt
 ```
 
 ### 2. 환경 변수 설정
 
-프로젝트 루트에 `.env` 파일을 생성하고 다음 내용을 입력합니다:
+`env.template` 파일을 복사하여 `.env` 파일을 생성하고 설정값을 입력합니다:
+
+```bash
+cp env.template .env
+```
+
+`.env` 파일 주요 설정:
 
 ```bash
 # Databricks Agent 설정
-AGENT_ENDPOINT_URL=https://adb-xxxx.azuredatabricks.net/serving-endpoints/your-agent/invocations
-DATABRICKS_TOKEN=your_databricks_personal_access_token
-
-# Vector Search 설정
-VECTOR_SEARCH_INDEX=koreanair_docs_index
+AGENT_ENDPOINT_URL=https://your-workspace.azuredatabricks.net/serving-endpoints/your-agent/invocations
+DATABRICKS_TOKEN=dapi...your-token...
 
 # Unity Catalog 설정
 CATALOG_NAME=koreanair_corp
 SCHEMA_NAME=hr_docs
 VOLUME_NAME=uploads
 
-# Volume 베이스 경로 (로컬 테스트 시)
+# Volume 경로 (로컬 테스트 시)
 VOLUME_BASE_PATH=./local_volumes
 
 # 세션 설정
@@ -55,10 +72,6 @@ MAX_HISTORY_TURNS=5
 # 파일 업로드 설정
 ALLOWED_FILE_TYPES=pdf,docx,pptx,txt,xlsx
 MAX_UPLOAD_MB=10
-
-# Flask 설정
-SECRET_KEY=your_random_secret_key_here
-FLASK_DEBUG=True
 
 # 로깅
 LOG_LEVEL=INFO
@@ -79,122 +92,151 @@ LOG_LEVEL=INFO
 2. 사용할 Agent의 **Serving Endpoint** 확인
 3. Endpoint URL을 복사하여 `.env` 파일에 입력
 
-## 🚀 로컬 실행 (테스트)
+## 🚀 실행 방법
 
-### 1. 로컬 테스트 디렉토리 생성
-
-```bash
-mkdir -p ./local_volumes/uploads
-```
-
-### 2. 애플리케이션 실행
+### macOS / Linux
 
 ```bash
-python app.py
+# 실행 권한 부여 (최초 1회)
+chmod +x run_streamlit.sh
+
+# 앱 실행
+./run_streamlit.sh
 ```
 
-### 3. 브라우저에서 접속
-
-```
-http://localhost:5000
-```
-
-### 4. 로컬 테스트 시 주의사항
-
-- 로컬에서는 실제 Unity Catalog Volume이 아닌 `./local_volumes` 디렉토리를 사용합니다
-- Databricks Agent API 호출은 실제 엔드포인트를 사용하므로 유효한 토큰이 필요합니다
-- 파일 업로드 기능은 로컬 파일시스템에 저장됩니다
-
-## 📤 Databricks Apps 배포
-
-### 1. 배포 준비
-
-프로젝트 루트에 `databricks.yml` 파일을 생성합니다:
-
-```yaml
-# databricks.yml
-bundle:
-  name: koreanair-rag-app
-
-workspace:
-  host: https://adb-xxxx.azuredatabricks.net
-  
-resources:
-  apps:
-    koreanair_rag:
-      name: koreanair-rag-app
-      description: "대한항공 RAG 질의응답 시스템"
-      
-      # Python 앱 설정
-      source_code_path: .
-      
-      # 환경변수 (민감정보는 Databricks Secrets 사용)
-      config:
-        env:
-          - name: AGENT_ENDPOINT_URL
-            value: "{{secrets/koreanair-rag/agent-endpoint-url}}"
-          - name: DATABRICKS_TOKEN
-            value: "{{secrets/koreanair-rag/databricks-token}}"
-          - name: VECTOR_SEARCH_INDEX
-            value: "koreanair_docs_index"
-          - name: CATALOG_NAME
-            value: "koreanair_corp"
-          - name: SCHEMA_NAME
-            value: "hr_docs"
-          - name: VOLUME_NAME
-            value: "uploads"
-          - name: VOLUME_BASE_PATH
-            value: "/Volumes"
-          - name: SESSION_TIMEOUT_MINUTES
-            value: "60"
-          - name: MAX_HISTORY_TURNS
-            value: "5"
-          - name: ALLOWED_FILE_TYPES
-            value: "pdf,docx,pptx,txt,xlsx"
-          - name: MAX_UPLOAD_MB
-            value: "10"
-          - name: LOG_LEVEL
-            value: "INFO"
-      
-      # 리소스 설정
-      resources:
-        - name: default
-          memory: "2Gi"
-          cpu: "1"
-```
-
-### 2. Databricks Secrets 설정
+### Windows
 
 ```bash
-# Databricks CLI 설치 (필요한 경우)
-pip install databricks-cli
-
-# Databricks CLI 인증
-databricks configure --token
-
-# Secret Scope 생성
-databricks secrets create-scope --scope koreanair-rag
-
-# Secret 추가
-databricks secrets put --scope koreanair-rag --key agent-endpoint-url
-databricks secrets put --scope koreanair-rag --key databricks-token
+run_streamlit.bat
 ```
 
-### 3. 앱 배포
+### 수동 실행
 
 ```bash
-# Databricks CLI로 배포
-databricks bundle deploy
+# 가상환경 활성화 (옵션)
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate.bat  # Windows
 
-# 또는 Databricks 워크스페이스 UI에서 배포
-# Apps → Create App → Upload Source Code
+# Streamlit 앱 실행
+streamlit run streamlit_app.py
 ```
 
-### 4. 배포 확인
+앱이 실행되면 브라우저에서 자동으로 http://localhost:8501 이 열립니다.
 
-1. Databricks 워크스페이스에서 **Apps** 메뉴로 이동
-2. 배포된 앱의 URL 확인 및 접속
-3. 상태 모니터링 및 로그 확인
+## 📁 프로젝트 구조
+
+```
+대한항공_RAG/
+├── streamlit_app.py          # Streamlit 메인 앱
+├── config.py                  # 설정 관리
+├── requirements.txt           # Python 의존성
+├── .env                       # 환경 변수 (수동 생성 필요)
+├── env.template               # 환경 변수 템플릿
+├── .streamlit/
+│   └── config.toml           # Streamlit 설정 (테마, 서버)
+├── run_streamlit.sh          # 실행 스크립트 (macOS/Linux)
+├── run_streamlit.bat         # 실행 스크립트 (Windows)
+├── local_volumes/            # 로컬 개발용 파일 저장소
+├── README.md                 # 이 문서
+└── flask_version_backup_*.zip # 이전 Flask 버전 백업
+```
+
+## 🎨 UI 기능
+
+### 헤더
+- 그라디언트 배경의 멋진 헤더
+- 앱 제목과 설명 표시
+
+### 사이드바
+- **세션 정보**: 대화 수, 업로드 파일 수를 카드 형태로 표시
+- **새 세션 시작**: 버튼 클릭으로 대화 초기화
+- **파일 업로드**: 드래그 앤 드롭 또는 클릭으로 파일 선택
+- **업로드된 파일 목록**: 파일명과 크기 표시
+- **예시 질문**: 클릭 한 번으로 질문 입력
+
+### 채팅 영역
+- **사용자 메시지**: 👤 아이콘과 함께 표시
+- **AI 응답**: ✈️ 아이콘과 함께 실시간 스트리밍
+- **툴 사용 표시**: 문서 검색 중 상태 배지 표시
+- **Markdown 렌더링**: 코드, 표, 리스트 등 자동 포맷팅
+
+## 🔧 설정 커스터마이징
+
+### 테마 변경
+
+`.streamlit/config.toml` 파일에서 색상과 폰트를 변경할 수 있습니다:
+
+```toml
+[theme]
+primaryColor = "#667eea"        # 주요 색상
+backgroundColor = "#f5f7fa"     # 배경 색상
+secondaryBackgroundColor = "#ffffff"  # 보조 배경
+textColor = "#262730"           # 텍스트 색상
+font = "sans serif"             # 폰트
+```
+
+### 서버 설정
+
+```toml
+[server]
+port = 8501                     # 포트 번호
+maxUploadSize = 10              # 최대 업로드 크기 (MB)
+```
+
+## 📊 Streamlit의 장점
+
+### Flask 버전과의 비교
+
+| 항목 | Flask | Streamlit |
+|------|-------|-----------|
+| 코드 라인 수 | ~900줄 | ~600줄 |
+| UI 구현 | HTML/CSS/JS 수동 작성 | Python만으로 구현 |
+| 상태 관리 | 수동 세션 관리 | `st.session_state` 자동 관리 |
+| 스트리밍 | SSE 구현 필요 | 내장 지원 |
+| 파일 업로드 | FormData 처리 필요 | `st.file_uploader()` |
+| 반응성 | 수동 이벤트 처리 | 자동 재렌더링 |
+| 개발 속도 | 느림 | 매우 빠름 |
+| 유지보수 | 복잡 | 간단 |
+
+### 주요 개선사항
+
+1. **코드 간결성**: 33% 코드 감소 (900줄 → 600줄)
+2. **개발 효율성**: HTML/CSS/JS 작성 불필요
+3. **상태 관리**: Streamlit의 자동 세션 관리 활용
+4. **반응성**: 사용자 입력에 대한 자동 재렌더링
+5. **UI/UX**: 더 모던하고 직관적인 인터페이스
+
+## 🐛 트러블슈팅
+
+### 1. Streamlit이 설치되지 않음
+
+```bash
+pip install streamlit==1.31.0
+```
+
+### 2. 포트 8501이 이미 사용 중
+
+```bash
+# 다른 포트로 실행
+streamlit run streamlit_app.py --server.port 8502
+```
+
+### 3. Agent 호출 실패 (401 Unauthorized)
+
+- `DATABRICKS_TOKEN`이 유효한지 확인
+- Agent 엔드포인트 URL이 올바른지 확인
+- Service Principal 권한 확인
+
+### 4. 파일 업로드 실패
+
+- `.env` 파일에서 `DATABRICKS_TOKEN`이 올바르게 설정되었는지 확인
+- Unity Catalog Volume 경로가 올바른지 확인
+- 로컬 개발 모드에서는 `./local_volumes/uploads` 디렉토리가 자동 생성됨
+
+### 5. 세션 초기화 문제
+
+- 브라우저를 새로고침하면 세션이 초기화됩니다 (Streamlit 특성)
+- 장기 세션이 필요한 경우 외부 저장소 사용 고려
 
 ## 🔐 권한 설정
 
@@ -228,145 +270,23 @@ GRANT SELECT ON TABLE koreanair_docs_index TO `service-principal-name`;
 2. Agent Endpoint 선택
 3. **Permissions** 탭에서 서비스 주체에게 **Can Query** 권한 부여
 
-#### 4. Databricks Apps 권한
+## 📈 성능 최적화
 
-앱 사용자에게 다음 권한이 필요합니다:
+1. **스트리밍 응답**: 답변을 실시간으로 표시하여 체감 속도 향상
+2. **세션 상태 캐싱**: Streamlit의 세션 상태로 불필요한 API 호출 방지
+3. **파일 업로드 최적화**: 로컬 캐싱 후 Volume 업로드
 
-- Workspace 접근 권한
-- 앱 실행 권한 (앱의 **Permissions** 설정에서 관리)
+## 🎯 향후 개선 계획
 
-### 권한 확인 스크립트
+- [ ] Databricks Apps 배포 가이드 추가
+- [ ] 대화 내역 내보내기 (JSON, TXT)
+- [ ] 다중 파일 업로드 지원
+- [ ] 응답 평가 기능 (👍/👎)
+- [ ] 문서 출처 표시 (Citations)
+- [ ] 다크 모드 지원
+- [ ] 사용자 피드백 수집
 
-```python
-# check_permissions.py
-from databricks import sql
-import os
-
-def check_permissions():
-    """권한 확인"""
-    print("=" * 60)
-    print("권한 확인 중...")
-    print("=" * 60)
-    
-    # Databricks SQL 연결 (예시)
-    connection = sql.connect(
-        server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
-        http_path=os.getenv("DATABRICKS_HTTP_PATH"),
-        access_token=os.getenv("DATABRICKS_TOKEN")
-    )
-    
-    cursor = connection.cursor()
-    
-    # Catalog 권한 확인
-    cursor.execute(f"SHOW GRANTS ON CATALOG {os.getenv('CATALOG_NAME')}")
-    print("\n1. Catalog 권한:")
-    for row in cursor.fetchall():
-        print(f"   {row}")
-    
-    # Schema 권한 확인
-    cursor.execute(f"SHOW GRANTS ON SCHEMA {os.getenv('CATALOG_NAME')}.{os.getenv('SCHEMA_NAME')}")
-    print("\n2. Schema 권한:")
-    for row in cursor.fetchall():
-        print(f"   {row}")
-    
-    # Volume 권한 확인
-    cursor.execute(f"SHOW GRANTS ON VOLUME {os.getenv('CATALOG_NAME')}.{os.getenv('SCHEMA_NAME')}.{os.getenv('VOLUME_NAME')}")
-    print("\n3. Volume 권한:")
-    for row in cursor.fetchall():
-        print(f"   {row}")
-    
-    cursor.close()
-    connection.close()
-    
-    print("\n" + "=" * 60)
-    print("권한 확인 완료")
-    print("=" * 60)
-
-if __name__ == "__main__":
-    check_permissions()
-```
-
-## 📊 모니터링 및 로깅
-
-### 로그 확인
-
-#### 로컬 실행 시
-
-- 콘솔에 실시간 로그 출력
-- 로그 레벨: `LOG_LEVEL` 환경변수로 설정
-
-#### Databricks Apps 배포 시
-
-1. Databricks 워크스페이스에서 **Apps** 메뉴 이동
-2. 앱 선택 → **Logs** 탭
-3. 실시간 로그 및 히스토리 확인
-
-### 헬스체크
-
-앱의 상태를 확인하는 헬스체크 엔드포인트:
-
-```
-GET /health
-```
-
-응답 예시:
-```json
-{
-  "status": "healthy",
-  "active_sessions": 5
-}
-```
-
-## 🧪 테스트
-
-### API 테스트
-
-```bash
-# 새 세션 생성
-curl -X POST http://localhost:5000/api/session/new
-
-# 질문 전송
-curl -X POST http://localhost:5000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "복리후생 제도는?", "session_id": "your-session-id"}'
-
-# 파일 업로드
-curl -X POST http://localhost:5000/api/upload \
-  -F "file=@test.pdf" \
-  -F "session_id=your-session-id"
-```
-
-## 🔧 트러블슈팅
-
-### 1. Agent 호출 실패
-
-**증상**: "Agent 호출 실패" 오류 메시지
-
-**해결 방법**:
-- `DATABRICKS_TOKEN`이 유효한지 확인
-- `AGENT_ENDPOINT_URL`이 올바른지 확인
-- Agent Endpoint의 Permissions 확인
-
-### 2. 파일 업로드 실패
-
-**증상**: 파일 업로드 시 오류 발생
-
-**해결 방법**:
-- Unity Catalog Volume 권한 확인 (`READ VOLUME`, `WRITE VOLUME`)
-- `VOLUME_BASE_PATH`가 올바른지 확인
-- 디스크 공간 확인
-
-### 3. 세션 초기화
-
-**증상**: 세션이 자주 초기화됨
-
-**해결 방법**:
-- `SESSION_TIMEOUT_MINUTES` 값 증가
-- 프로덕션 환경에서는 Redis 등 외부 세션 저장소 사용 권장
-
-## 📝 설정 커스터마이징
-
-### 환경변수 설명
+## 📝 환경변수 참조
 
 | 변수명 | 설명 | 기본값 |
 |--------|------|--------|
@@ -376,13 +296,11 @@ curl -X POST http://localhost:5000/api/upload \
 | `CATALOG_NAME` | Unity Catalog 카탈로그 이름 | `koreanair_corp` |
 | `SCHEMA_NAME` | Unity Catalog 스키마 이름 | `hr_docs` |
 | `VOLUME_NAME` | Unity Catalog 볼륨 이름 | `uploads` |
-| `VOLUME_BASE_PATH` | 볼륨 베이스 경로 | `/Volumes` (배포) / `./local_volumes` (로컬) |
+| `VOLUME_BASE_PATH` | 볼륨 베이스 경로 | `./local_volumes` (로컬) |
 | `SESSION_TIMEOUT_MINUTES` | 세션 타임아웃 (분) | `60` |
 | `MAX_HISTORY_TURNS` | 최대 히스토리 턴 수 | `5` |
 | `ALLOWED_FILE_TYPES` | 허용 파일 형식 (콤마 구분) | `pdf,docx,pptx,txt,xlsx` |
 | `MAX_UPLOAD_MB` | 최대 업로드 파일 크기 (MB) | `10` |
-| `SECRET_KEY` | Flask 세션 암호화 키 | 자동 생성 |
-| `FLASK_DEBUG` | Flask 디버그 모드 | `False` |
 | `LOG_LEVEL` | 로그 레벨 | `INFO` |
 
 ## 🤝 기여
@@ -399,3 +317,4 @@ curl -X POST http://localhost:5000/api/upload \
 
 기술 지원이 필요한 경우 IT 지원팀으로 문의해주세요.
 
+**Made with ❤️ using Streamlit and Databricks**

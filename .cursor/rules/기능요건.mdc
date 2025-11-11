@@ -11,7 +11,7 @@ alwaysApply: false
 ---
 
 ### 2.3 에이전트 연결 및 RAG 처리
-- Flask 서버 → Databricks Agent REST API 호출
+- 서버 → Databricks Agent REST API 호출
 - 입력값:
   - query: 사용자 질문
   - history: 세션 히스토리

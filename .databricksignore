@@ -1,0 +1,74 @@
+# Databricks Apps 배포 시 제외할 파일 및 디렉토리
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 환경 변수 (보안!)
+.env
+.env.local
+.env.*.local
+
+# 로컬 개발 데이터
+local_volumes/
+*.db
+*.sqlite
+
+# 백업 및 압축 파일
+*.zip
+*.tar.gz
+*.bak
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# 로그 파일
+*.log
+
+# 테스트 파일
+tests/
+test_*.py
+*_test.py
+
+# 문서 (선택사항 - 필요시 제거)
+flask_version_backup_*.zip
+대한항공_RAG_backup_*.zip
+RAG_mlflow_evaluation_demo.dbc
+*.dbc
+
+# PDF 및 대용량 파일 (선택사항)
+대한항공의 마일리지 통합방안(안).pdf
+회사생활 길잡이.zip
+
+# 임시 파일
+tmp/
+temp/
+*.tmp
+
+# Jupyter Notebooks (선택사항)
+*.ipynb
+.ipynb_checkpoints/
+
+# 기타 개발 파일
+*.md.backup
+drafts/
+

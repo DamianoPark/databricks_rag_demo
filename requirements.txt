@@ -6,3 +6,8 @@ python-dotenv==1.0.0
 # Databricks Apps 배포 시 추가 권장 패키지
 gunicorn==21.2.0
 
+# Streamlit 관련 패키지
+streamlit==1.31.0
+streamlit-chat==0.1.1
+watchdog==3.0.0
+
