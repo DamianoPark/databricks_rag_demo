@@ -23,7 +23,7 @@ env:
   # Databricks 인증 (Service Principal 토큰)
   # resources 섹션에서 선언된 Secret 참조
   - name: DATABRICKS_TOKEN
-    valueFrom: databricks-token
+    valueFrom: "{{resources.databricks-token}}"
   
   # Unity Catalog 설정
   - name: CATALOG_NAME
