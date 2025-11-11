@@ -625,23 +625,6 @@ def chat_stream():
                 # 이벤트 타입별 처리
                 event_type = event.get('event_type') or event.get('type')
                 
-                # Tool 사용 감지 및 전송
-                if event_type in ['tool_start', 'tool_call', 'tool_use']:
-                    tool_name = event.get('tool_name') or event.get('name') or event.get('tool', {}).get('name', 'Tool')
-                    tool_description = event.get('description', '')
-                    
-                    # Tool 정보 전송
-                    yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_name, 'description': tool_description})}\n\n"
-                    logger.info(f"Tool 사용 시작: {tool_name}")
-                    continue
-                
-                # Tool 완료 감지
-                elif event_type in ['tool_end', 'tool_result', 'tool_output']:
-                    tool_name = event.get('tool_name') or event.get('name', 'Tool')
-                    yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': tool_name})}\n\n"
-                    logger.info(f"Tool 사용 완료: {tool_name}")
-                    continue
-                
                 # Delta 텍스트 추출
                 delta_text = ''
                 

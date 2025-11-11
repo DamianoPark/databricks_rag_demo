@@ -244,64 +244,6 @@
             }
         }
 
-        // Tool 사용 표시
-        function showToolUsage(container, toolName, description) {
-            // 기존 상태 메시지 제거
-            const existingStatus = container.querySelector('.status-message');
-            if (existingStatus) {
-                existingStatus.remove();
-            }
-            
-            // 기존 Tool 표시 제거 (중복 방지)
-            const existingTool = container.querySelector('.tool-usage');
-            if (existingTool) {
-                existingTool.remove();
-            }
-            
-            const toolDiv = document.createElement('div');
-            toolDiv.className = 'tool-usage';
-            toolDiv.innerHTML = `
-                <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                </svg>
-                <div class="tool-content">
-                    <div class="tool-name">${escapeHtml(toolName)}</div>
-                    <div class="tool-description">${escapeHtml(description)}</div>
-                </div>
-            `;
-            container.appendChild(toolDiv);
-            scrollToBottom();
-        }
-
-        // 상태 메시지 업데이트
-        function updateStatusMessage(container, message) {
-            // 기존 Tool 표시 제거
-            const existingTool = container.querySelector('.tool-usage');
-            if (existingTool) {
-                existingTool.remove();
-            }
-            
-            // 상태 메시지 표시
-            const statusDiv = document.createElement('div');
-            statusDiv.className = 'status-message';
-            statusDiv.innerHTML = `
-                <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                </svg>
-                <span>${escapeHtml(message)}</span>
-            `;
-            container.appendChild(statusDiv);
-            
-            // 2초 후 제거
-            setTimeout(() => {
-                if (statusDiv.parentNode) {
-                    statusDiv.remove();
-                }
-            }, 2000);
-            
-            scrollToBottom();
-        }
 
         // 새 세션 생성
         async function createNewSession() {
@@ -428,20 +370,6 @@
                                 
                                 // 스크롤 (사용자가 스크롤 중이 아닐 때만)
                                 scrollToBottom();
-                                
-                            } else if (event.type === 'tool_start' || event.type === 'tool_use') {
-                                // Tool 사용 시작
-                                const toolName = event.tool_name || event.name || 'Tool';
-                                const toolDescription = event.description || 
-                                    (toolName === 'retriever' ? '문서 검색 중...' : 
-                                     toolName === 'vector_search' ? 'Vector 검색 실행 중...' : 
-                                     'Tool 실행 중...');
-                                
-                                showToolUsage(textDiv, toolName, toolDescription);
-                                
-                            } else if (event.type === 'tool_end' || event.type === 'tool_result') {
-                                // Tool 사용 완료 (필요시 상태 메시지 업데이트)
-                                updateStatusMessage(textDiv, '응답을 생성하고 있습니다...');
                                 
                             } else if (event.type === 'done') {
                                 // 완료

@@ -624,68 +624,6 @@ body {
     }
 }
 
-/* ======================
-   Tool 사용 표시
-   ====================== */
-.tool-usage {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-left: 4px solid var(--primary-color);
-    padding: var(--spacing-md);
-    margin: var(--spacing-sm) 0;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.tool-icon {
-    width: 24px;
-    height: 24px;
-    color: var(--primary-color);
-    flex-shrink: 0;
-    animation: toolPulse 2s ease-in-out infinite;
-}
-
-@keyframes toolPulse {
-    0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.7;
-        transform: scale(1.1);
-    }
-}
-
-.tool-content {
-    flex: 1;
-}
-
-.tool-name {
-    font-weight: 600;
-    color: var(--primary-color);
-    font-size: 0.9rem;
-    margin-bottom: var(--spacing-xs);
-}
-
-.tool-description {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
 /* 상태 메시지 */
 .status-message {
     display: flex;
