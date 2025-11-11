@@ -6,13 +6,12 @@ command:
   - "python"
   - "app.py"
 
-# 리소스 권한 (Secret 접근 등)
+# 리소스 권한
 resources:
-  - name: databricks-token
-    secret:
-      scope: jaewoo
-      key: databricks-token
-      permission: READ
+  - name: rag-agent
+    serving_endpoint:
+      name: agents_jaewoo_catalog-mlfow_eval-rag_agent_v2
+      permission: CAN_QUERY
 
 # 환경 변수
 env:
@@ -20,10 +19,9 @@ env:
   - name: AGENT_ENDPOINT_URL
     value: "https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/agents_jaewoo_catalog-mlfow_eval-rag_agent_v2/invocations"
   
-  # Databricks 인증 (Service Principal 토큰)
-  # resources 섹션에서 선언된 Secret 참조
-  - name: DATABRICKS_TOKEN
-    valueFrom: "{{resources.databricks-token}}"
+  # Databricks 인증
+  # Databricks Apps는 자동으로 Service Principal 토큰을 제공합니다
+  # DATABRICKS_TOKEN 환경 변수는 자동으로 주입됩니다
   
   # Unity Catalog 설정
   - name: CATALOG_NAME
