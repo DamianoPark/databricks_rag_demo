@@ -600,19 +600,18 @@ def chat_stream():
     
     def generate():
         try:
-            
             if not question:
                 yield f"data: {json.dumps({'error': '질문을 입력해주세요'})}\n\n"
                 return
             
-            # 세션 관리
-            session_id, session_data = SessionManager.get_or_create_session(session_id)
+            # 세션 관리 (클로저 변수 충돌 방지를 위해 다른 이름 사용)
+            current_session_id, session_data = SessionManager.get_or_create_session(session_id)
             
             # 사용자 질문 히스토리 추가
-            SessionManager.add_to_history(session_id, 'user', question)
+            SessionManager.add_to_history(current_session_id, 'user', question)
             
             # 세션 ID 전송
-            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+            yield f"data: {json.dumps({'type': 'session', 'session_id': current_session_id})}\n\n"
             
             # 누적 응답 텍스트
             accumulated_text = ''
@@ -669,7 +668,7 @@ def chat_stream():
                     break
             
             # 응답 히스토리 추가
-            SessionManager.add_to_history(session_id, 'assistant', accumulated_text)
+            SessionManager.add_to_history(current_session_id, 'assistant', accumulated_text)
             
             # 완료 신호
             yield f"data: {json.dumps({'type': 'done', 'full_text': accumulated_text})}\n\n"

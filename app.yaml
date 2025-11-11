@@ -12,9 +12,9 @@ env:
   - name: AGENT_ENDPOINT_URL
     value: "https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/agents_jaewoo_catalog-mlfow_eval-rag_agent_v2/invocations"
   
-  # Databricks 인증 (Secret을 통해 주입)
-  # Secret 설정: databricks secrets create-scope jaewoo
-  #              databricks secrets put-secret jaewoo databricks-token
+  # Databricks 인증 (Service Principal 토큰)
+  # Secret ACL에 Service Principal 권한 필요:
+  # databricks secrets put-acl jaewoo "app-40zbx9 jw-rag-app-v2" READ
   - name: DATABRICKS_TOKEN
     valueFrom: "{{secrets/jaewoo/databricks-token}}"
   
