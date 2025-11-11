@@ -593,11 +593,13 @@ def chat():
 @app.route('/api/chat/stream', methods=['POST'])
 def chat_stream():
     """채팅 메시지 스트리밍 처리 (SSE)"""
+    # request context 밖에서 데이터 읽기
+    data = request.json
+    question = data.get('question', '').strip()
+    session_id = data.get('session_id')
+    
     def generate():
         try:
-            data = request.json
-            question = data.get('question', '').strip()
-            session_id = data.get('session_id')
             
             if not question:
                 yield f"data: {json.dumps({'error': '질문을 입력해주세요'})}\n\n"
